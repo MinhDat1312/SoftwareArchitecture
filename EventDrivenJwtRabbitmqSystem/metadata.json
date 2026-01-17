@@ -1,0 +1,5 @@
+{
+  "name": "RabbitChat - Secure Messenger",
+  "description": "A modern chat application demonstrating JWT Authentication (Login, Register, Refresh) and RabbitMQ-style messaging patterns with a clean UI.",
+  "requestFramePermissions": []
+}
