@@ -1,256 +1,54 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="vi" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Chat App</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f5f7fa;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header h2 {
-            margin: 0;
-        }
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-        }
-        .username {
-            font-weight: 600;
-        }
-        .logout-btn {
-            background: rgba(255,255,255,0.2);
-            color: white;
-            border: 1px solid rgba(255,255,255,0.3);
-            padding: 8px 16px;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        .logout-btn:hover {
-            background: rgba(255,255,255,0.3);
-        }
-        .chat-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            max-width: 800px;
-            width: 100%;
-            margin: 20px auto;
-            background: white;
-            border-radius: 10px;
-            box-shadow: 0 2px 20px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        #chat-box {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .message {
-            padding: 10px 15px;
-            border-radius: 10px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-        .message.own {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            align-self: flex-end;
-            margin-left: auto;
-        }
-        .message.other {
-            background: #e9ecef;
-            color: #333;
-            align-self: flex-start;
-        }
-        .message .sender {
-            font-weight: 600;
-            font-size: 12px;
-            margin-bottom: 5px;
-            opacity: 0.8;
-        }
-        .message .content {
-            font-size: 14px;
-        }
-        .input-container {
-            padding: 20px;
-            background: #f8f9fa;
-            border-top: 1px solid #e1e8ed;
-            display: flex;
-            gap: 10px;
-        }
-        #message {
-            flex: 1;
-            padding: 12px;
-            border: 2px solid #e1e8ed;
-            border-radius: 5px;
-            font-size: 14px;
-            transition: border-color 0.3s;
-        }
-        #message:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        .send-btn {
-            padding: 12px 24px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-        }
-        .send-btn:hover {
-            transform: translateY(-2px);
-        }
-        .status {
-            text-align: center;
-            padding: 10px;
-            font-size: 12px;
-            color: #666;
-        }
-        .status.connected {
-            color: #27ae60;
-        }
-        .status.disconnected {
-            color: #e74c3c;
-        }
-    </style>
+    <title>Chat Room</title>
 </head>
 <body>
 
-<div class="header">
-    <h2>💬 Chat App</h2>
-    <div class="user-info">
-        <span class="username" id="current-user"></span>
-        <form method="post" action="/auth/logout" style="margin: 0;">
-            <button type="submit" class="logout-btn">Logout</button>
-        </form>
-    </div>
-</div>
+<h2>Chat Room</h2>
 
-<div class="chat-container">
-    <div class="status" id="status">Connecting...</div>
-    <div id="chat-box"></div>
-    <div class="input-container">
-        <input id="message" placeholder="Type your message..." />
-        <button class="send-btn" onclick="send()">Send</button>
-    </div>
-</div>
+<p>
+    Xin chào:
+    <b th:text="${#httpServletRequest.getCookie('USERNAME') != null
+        ? #httpServletRequest.getCookie('USERNAME').value
+        : 'Unknown'}">
+    </b>
+</p>
+
+<hr>
+
+<!-- THÔNG BÁO -->
+<p style="color:gray">
+    ⚠ Chat realtime cần WebSocket.<br>
+    HTML này chỉ hiển thị UI.
+</p>
+
+<hr>
+
+<form>
+    <input type="text" placeholder="Nhập tin nhắn..." disabled>
+    <button disabled>Send</button>
+</form>
+
+<hr>
+
+<form id="logout">
+    <button type="submit">Logout</button>
+</form>
 
 <script>
-    // Lấy username từ cookie
-    function getCookie(name) {
-        const value = `; ${document.cookie}`;
-        const parts = value.split(`; ${name}=`);
-        if (parts.length === 2) return parts.pop().split(';').shift();
-        return null;
-    }
+    document.getElementById("logout").addEventListener("submit", async (e) => {
+        e.preventDefault();
 
-    const username = getCookie('USERNAME');
-    const jwtToken = getCookie('JWT_TOKEN');
-
-    // Kiểm tra authentication
-    if (!username || !jwtToken) {
-        window.location.href = '/login';
-    }
-
-    document.getElementById('current-user').innerText = username;
-
-    // Kết nối SSE để nhận tin nhắn real-time
-    const eventSource = new EventSource('/chat/stream');
-    const statusElement = document.getElementById('status');
-
-    eventSource.onopen = function() {
-        statusElement.innerText = 'Connected ✓';
-        statusElement.className = 'status connected';
-    };
-
-    eventSource.onerror = function() {
-        statusElement.innerText = 'Disconnected ✗';
-        statusElement.className = 'status disconnected';
-    };
-
-    eventSource.addEventListener('message', function(event) {
-        const message = JSON.parse(event.data);
-        appendMessage(message.from, message.content, message.from === username);
-    });
-
-    // Gửi tin nhắn
-    function send() {
-        const content = document.getElementById('message').value.trim();
-        if (!content) return;
-
-        fetch('/chat/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                from: username,
-                content: content
-            })
-        })
-        .then(response => {
-            if (response.ok) {
-                document.getElementById('message').value = '';
-            }
-        })
-        .catch(error => {
-            console.error('Error sending message:', error);
-            alert('Failed to send message');
+        const res = await fetch("/auth/logout", {
+            method: "POST"
         });
-    }
 
-    // Hiển thị tin nhắn
-    function appendMessage(sender, content, isOwn) {
-        const chatBox = document.getElementById('chat-box');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = isOwn ? 'message own' : 'message other';
-        
-        const senderDiv = document.createElement('div');
-        senderDiv.className = 'sender';
-        senderDiv.textContent = sender;
-        
-        const contentDiv = document.createElement('div');
-        contentDiv.className = 'content';
-        contentDiv.textContent = content;
-        
-        messageDiv.appendChild(senderDiv);
-        messageDiv.appendChild(contentDiv);
-        chatBox.appendChild(messageDiv);
-        
-        // Auto scroll to bottom
-        chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    // Gửi tin nhắn khi nhấn Enter
-    document.getElementById('message').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') {
-            send();
+        if (res.ok) {
+            window.location.href = "/login";
+        } else {
+            alert("Login failed");
         }
     });
 </script>

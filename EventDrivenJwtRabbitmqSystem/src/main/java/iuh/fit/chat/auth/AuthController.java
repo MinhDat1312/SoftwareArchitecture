@@ -1,14 +1,14 @@
 package iuh.fit.chat.auth;
 
-import jakarta.servlet.http.Cookie;
+import iuh.fit.chat.dto.LoginRequest;
+import iuh.fit.chat.dto.LoginResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-@Controller
+@RestController
 @RequiredArgsConstructor
 @RequestMapping("/auth")
 public class AuthController {
@@ -16,45 +16,46 @@ public class AuthController {
     private final AuthService service;
 
     @PostMapping("/register")
-    public String register(@RequestParam String username, @RequestParam String password) {
-        this.service.register(username, password);
-        return "redirect:/login";
+    public ResponseEntity<LoginResponse> register(@RequestBody LoginRequest loginRequest) {
+        LoginResponse response = this.service.register(loginRequest);
+        if(response == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
-    public String login(@RequestParam String username, @RequestParam String password, HttpServletResponse response) {
-        String token = this.service.login(username, password);
-        
-        // Lưu JWT vào cookie
-        Cookie jwtCookie = new Cookie("JWT_TOKEN", token);
-        jwtCookie.setHttpOnly(true);
-        jwtCookie.setSecure(false); // Set true nếu dùng HTTPS
-        jwtCookie.setPath("/");
-        jwtCookie.setMaxAge(3600); // 1 giờ
-        response.addCookie(jwtCookie);
-        
-        // Lưu username vào cookie (không cần HttpOnly vì JS cần đọc)
-        Cookie userCookie = new Cookie("USERNAME", username);
-        userCookie.setPath("/");
-        userCookie.setMaxAge(3600);
-        response.addCookie(userCookie);
-        
-        return "redirect:/chat";
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest loginRequest, HttpServletResponse response) {
+        LoginResponse res = this.service.login(loginRequest, response);
+        if(res == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+
+        return ResponseEntity.ok(res);
+    }
+
+    @GetMapping("/refresh")
+    public ResponseEntity<?> refresh(
+            @CookieValue(name = "refreshToken", defaultValue = "missingValue") String refreshToken,
+            HttpServletResponse response
+    ) {
+        LoginResponse res = this.service.refresh(refreshToken, response);
+        if(res == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
+        }
+
+        return ResponseEntity.ok(res);
     }
 
     @PostMapping("/logout")
-    public String logout(HttpServletResponse response) {
-        // Xóa cookies
-        Cookie jwtCookie = new Cookie("JWT_TOKEN", null);
-        jwtCookie.setPath("/");
-        jwtCookie.setMaxAge(0);
-        response.addCookie(jwtCookie);
-        
-        Cookie userCookie = new Cookie("USERNAME", null);
-        userCookie.setPath("/");
-        userCookie.setMaxAge(0);
-        response.addCookie(userCookie);
-        
-        return "redirect:/login";
+    public ResponseEntity<Void> logout(
+            @CookieValue("accessToken") String accessToken,
+            @CookieValue("refreshToken") String refreshToken,
+            HttpServletResponse response
+    ) {
+        this.service.logout(accessToken, refreshToken, response);
+        return ResponseEntity.status(HttpStatus.OK).body(null);
     }
 }
+

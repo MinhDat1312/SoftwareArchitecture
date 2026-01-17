@@ -1,49 +1,184 @@
 package iuh.fit.chat.auth;
 
+import iuh.fit.chat.dto.LoginRequest;
+import iuh.fit.chat.dto.LoginResponse;
+import iuh.fit.chat.util.SecurityUtil;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.log4j.Log4j2;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Log4j2
 public class AuthService {
 
-    private final JwtEncoder encoder;
-    private final PasswordEncoder passwordEncoder;
-    private final Map<String, String> users = new HashMap<>();
+    @Value("${jwt.access-token}")
+    private long jwtAccessToken;
+    @Value("${jwt.refresh-token}")
+    private long jwtRefreshToken;
 
-    public void register(String u, String p) {
-        if (this.users.containsKey(u)) {
-            log.error("User already exists");
-            return;
+    private final AuthenticationManagerBuilder authenticationManagerBuilder;
+    private final PasswordEncoder passwordEncoder;
+    private final SecurityUtil securityUtil;
+
+    public static final List<LoginResponse> users = new ArrayList<>();
+
+    public LoginResponse register(LoginRequest request) {
+        if(request.getUsername() == null || request.getUsername().isEmpty()) {
+            return null;
         }
 
-        String hashedPassword = this.passwordEncoder.encode(p);
-        this.users.put(u, hashedPassword);
+        LoginResponse user = users.stream()
+                .filter(u -> u.getUsername().equalsIgnoreCase(request.getUsername()))
+                .findFirst()
+                .orElse(null);
+        if(user != null) {
+            return null;
+        }
+
+        String hashPassword = this.passwordEncoder.encode(request.getPassword());
+        LoginResponse response = new LoginResponse();
+        response.setUsername(request.getUsername());
+        response.setPassword(hashPassword);
+
+        users.add(response);
+
+        return response;
     }
 
-    public String login(String u, String p) {
-        String storedHash = this.users.get(u);
+    public LoginResponse login(LoginRequest loginRequest, HttpServletResponse response) {
+        Authentication authentication = this.authenticationManagerBuilder.getObject()
+                .authenticate(new UsernamePasswordAuthenticationToken(
+                        loginRequest.getUsername(), loginRequest.getPassword())
+                );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        if (storedHash == null || !this.passwordEncoder.matches(p, storedHash)) {
-            throw new RuntimeException("Invalid username or password");
+        LoginResponse res = users.stream()
+                .filter(u -> u.getUsername().equalsIgnoreCase(loginRequest.getUsername()))
+                .findFirst()
+                .orElse(null);
+        if(res == null) {
+            return null;
         }
 
-        JwtClaimsSet claims = JwtClaimsSet.builder()
-                .subject(u)
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(3600))
+        String accessToken = this.securityUtil.createAccessToken(res);
+        String refreshToken = this.securityUtil.createRefreshToken(res);
+
+        res.setRefreshToken(refreshToken);
+
+        ResponseCookie accessCookie = ResponseCookie
+                .from("accessToken", accessToken)
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(jwtAccessToken)
                 .build();
 
-        return this.encoder.encode(JwtEncoderParameters.from(claims)).getTokenValue();
+        ResponseCookie refreshCookie = ResponseCookie
+                .from("refreshToken", refreshToken)
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(jwtRefreshToken)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, refreshCookie.toString());
+
+        return res;
+    }
+
+    public LoginResponse refresh(String refreshToken, HttpServletResponse response) {
+        if(refreshToken.equalsIgnoreCase("missingValue")) {
+            return null;
+        }
+
+        Jwt jwt = this.securityUtil.checkValidToken(refreshToken);
+        String username = jwt.getSubject();
+
+        LoginResponse currentUser = users.stream().filter(u -> u.getUsername().equalsIgnoreCase(username)).findFirst().orElse(null);
+        if(currentUser == null){
+            return null;
+        }
+
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+                currentUser.getUsername(),
+                currentUser.getPassword(),
+                Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+        );
+        Authentication authentication = new UsernamePasswordAuthenticationToken(
+                userDetails, null, userDetails.getAuthorities()
+        );
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        String newAccessToken = this.securityUtil.createAccessToken(currentUser);
+        String newRefreshToken = this.securityUtil.createRefreshToken(currentUser);
+
+        currentUser.setRefreshToken(newRefreshToken);
+
+        ResponseCookie newAccessCookie = ResponseCookie
+                .from("accessToken", newAccessToken)
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(jwtAccessToken)
+                .build();
+
+        ResponseCookie newRefreshCookie = ResponseCookie
+                .from("refreshToken", newRefreshToken)
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(jwtRefreshToken)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, newAccessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, newRefreshCookie.toString());
+
+        return currentUser;
+    }
+
+    public void logout(String accessToken, String refreshToken, HttpServletResponse response) {
+        users.stream()
+                .filter(u -> u.getRefreshToken() != null && u.getRefreshToken().equalsIgnoreCase(refreshToken))
+                .findFirst().ifPresent(currentUser -> currentUser.setRefreshToken(null));
+
+        ResponseCookie deleteAccessCookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        ResponseCookie deleteRefreshCookie = ResponseCookie.from("refreshToken", "")
+                .httpOnly(true)
+                .secure(false) // for dev
+                .sameSite("Lax") // for dev
+                .path("/")
+                .maxAge(0)
+                .build();
+
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteAccessCookie.toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, deleteRefreshCookie.toString());
     }
 }
+

@@ -2,9 +2,7 @@ package iuh.fit.chat.chat;
 
 import lombok.*;
 
-@Getter
-@Setter
-@ToString
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class ChatMessage {
