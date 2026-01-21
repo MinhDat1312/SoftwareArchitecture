@@ -11,6 +11,8 @@ import iuh.fit.pattern01.ui.factory.WebFactory;
 
 public class Main {
     public static void main(String[] args) {
+
+        System.out.println("=====================================Singleton, Factory Method and Abstract Factory Pattern Demo=====================================");
         SystemConfig config = SystemConfig.getInstance();
         System.out.println(config.getSystemName());
 
@@ -28,5 +30,7 @@ public class Main {
 
         CourseFactory courseFactory = new OnlineCourseFactory();
         courseFactory.registerCourse();
+        System.out.println("=====================================Singleton, Factory Method and Abstract Factory Pattern Demo=====================================");
+
     }
 }
