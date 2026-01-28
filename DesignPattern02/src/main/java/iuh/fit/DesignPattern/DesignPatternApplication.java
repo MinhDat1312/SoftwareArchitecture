@@ -13,6 +13,9 @@ import iuh.fit.DesignPattern.library.service.observer.Librarian;
 import iuh.fit.DesignPattern.library.service.observer.NotificationService;
 import iuh.fit.DesignPattern.library.service.strategy.SearchByTitle;
 import iuh.fit.DesignPattern.library.service.strategy.SearchContext;
+import iuh.fit.DesignPattern.observer.Task;
+import iuh.fit.DesignPattern.observer.TaskStatus;
+import iuh.fit.DesignPattern.observer.TeamMember;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 import java.util.List;
@@ -21,6 +24,7 @@ import java.util.List;
 public class DesignPatternApplication {
 
 	public static void main(String[] args) {
+		System.out.println("=== Library Management System with Design Patterns ===");
 		// Singleton
 		Library library = Library.getInstance();
 
@@ -56,6 +60,22 @@ public class DesignPatternApplication {
 		);
 
 		System.out.println("📘 Hình thức mượn: " + borrow.borrowInfo());
+		System.out.println("=== Library Management System with Design Patterns ===");
+
+
+		System.out.println("=== Observer Pattern ===");
+		Task task = new Task("Implement Observer Pattern");
+
+		TeamMember dev = new TeamMember("Dev A");
+		TeamMember tester = new TeamMember("Tester B");
+
+		task.attach(dev);
+		task.attach(tester);
+
+		task.setStatus(TaskStatus.IN_PROGRESS);
+		task.setStatus(TaskStatus.DONE);
+		System.out.println("=== Observer Pattern ===");
+
 	}
 
 }
