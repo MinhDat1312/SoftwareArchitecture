@@ -1,5 +1,8 @@
 package iuh.fit.DesignPattern;
 
+import iuh.fit.DesignPattern.adapter.JsonService;
+import iuh.fit.DesignPattern.adapter.XmlService;
+import iuh.fit.DesignPattern.adapter.XmlToJsonAdapter;
 import iuh.fit.DesignPattern.library.domain.Book;
 import iuh.fit.DesignPattern.library.service.Library;
 import iuh.fit.DesignPattern.library.service.decorator.BasicBorrow;
@@ -75,6 +78,14 @@ public class DesignPatternApplication {
 		task.setStatus(TaskStatus.IN_PROGRESS);
 		task.setStatus(TaskStatus.DONE);
 		System.out.println("=== Observer Pattern ===");
+
+		System.out.println("=== Adapter Pattern ===");
+		XmlService xmlService = new XmlService();
+		JsonService adapter = new XmlToJsonAdapter(xmlService);
+
+		String json = "{ \"name\": \"Minh Dat\", \"role\": \"Developer\" }";
+		adapter.sendJson(json);
+		System.out.println("=== Adapter Pattern ===");
 
 	}
 
